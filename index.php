@@ -10,7 +10,7 @@ $route = new jRoute('/jroute', false);
 // Register routes
 $route->Route(['get', 'post'], '/', function() {
     return 'Hello, world!';
-}, 'admin');
+}, requiredRole: 'admin');
 
 $route->Route(['get', 'post'], '/test/{id}', "contents/includes/test.php");
 
@@ -22,7 +22,7 @@ $route->Route(['get'], '/user/{id}/{name}', function ($userId, $name) {
     return 'User with id: ' . $userId . ' and name: ' . $name;
 });
 
-$route->AddDir('/public', './contents/public', 'admin');
+$route->AddDir('/public', './contents/public', requiredRole: 'admin');
 
 // Dispatch request
 echo $route->Dispatch($_SERVER['REQUEST_METHOD'], $_SERVER['REQUEST_URI']);
