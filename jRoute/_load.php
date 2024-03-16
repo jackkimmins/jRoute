@@ -1,33 +1,66 @@
 <?php
 
-class jRoute
-{
+class RouterOptions {
+    public $debugMode = false;
+    public $urlPrefix = null;
+    public $cspLevel = 'none'; // Available levels: none, basic, medium, heavy, extreme
+
+    public function __construct($debugMode = false, $urlPrefix = null, $cspLevel = 'none') {
+        $this->debugMode = $debugMode;
+        $this->urlPrefix = $urlPrefix;
+        $this->cspLevel = $cspLevel;
+    }
+}
+
+class jRoute {
     private $routes = [];
     private $dirMappings = [];
-    private $urlPrefix = null;
-    private $debugMode = false;
+    private $options;
+    private $cspPolicies = [
+        'none' => "",
+        'basic' => "default-src 'self';",
+        'medium' => "default-src 'self'; script-src 'self'; object-src 'none';",
+        'heavy' => "default-src 'self'; script-src 'self'; object-src 'none'; style-src 'self'; img-src 'self';",
+        'extreme' => "default-src 'self'; script-src 'self'; object-src 'none'; style-src 'self'; img-src 'self'; media-src 'none'; frame-src 'none'; font-src 'self'; connect-src 'self';",
+    ];
 
-    private function OutputError($msg)
-    {
+    public function __construct(RouterOptions $options) {
+        $this->options = $options;
+    }
+
+    private function OutputError($msg) {
         echo "<br /><b>jRoute</b>: <code>" . $msg . "</code><br />";
     }
 
-    public function __construct($urlPrefix = null, $debugMode = false)
-    {
-        $this->urlPrefix = $urlPrefix;
-        $this->debugMode = $debugMode;
-    }
-
     // Method for adding a new route
-    public function Route(array $methods, string $pattern, $callback, $requiredRole = null)
+    public function Route(array $methods, string $pattern, $callback, array $requiredRole = null)
     {
         foreach ($methods as $method) {
             $this->routes[strtoupper($method)][$pattern] = ['callback' => $callback, 'role' => $requiredRole];
         }
-    }    
+    }
+
+    private function WriteRoutesToFile() {
+        $filePath = __DIR__ . '/jRoute_RoutesDebug.txt';
+        $fileContent = "Current Routes (Debug Mode):\n\n";
+
+        foreach ($this->routes as $method => $routesByMethod) {
+            foreach ($routesByMethod as $pattern => $routeInfo) {
+                $valid = is_callable($routeInfo['callback']) ? 'Valid' : 'Invalid';
+                $fileContent .= "Method: $method, Pattern: $pattern, Valid: $valid\n";
+                if (!empty($routeInfo['role'])) {
+                    $roles = is_array($routeInfo['role']) ? implode(', ', $routeInfo['role']) : $routeInfo['role'];
+                    $fileContent .= "Roles: $roles\n";
+                }
+                $fileContent .= "\n";
+            }
+        }
+
+        file_put_contents($filePath, $fileContent);
+    }
 
     // Method for passing a route to a file if it exists
-    public function PassRoute(string $baseUrl, string $dir, $requiredRole = null)
+    public function PassRoute(string $baseUrl, string $dir, array $requiredRole = null)
     {
         $this->Route(['get'], $baseUrl . '{path}', function($path) use ($dir) {
             $file = __DIR__ . $dir . $path;
@@ -42,7 +75,7 @@ class jRoute
     }    
 
     // Method for adding a directory mapping
-    public function AddDir(string $webPath, string $rootDir, $requiredRole = null)
+    public function AddDir(string $webPath, string $rootDir, array $requiredRole = null)
     {
         if (!($rootDir = realpath($rootDir))) {
             $this->OutputError("Directory does not exist: " . $rootDir);
@@ -52,42 +85,54 @@ class jRoute
         $this->dirMappings[] = ['webPath' => $webPath, 'rootDir' => $rootDir, 'role' => $requiredRole];
     }
 
+    private function SetSecureHeaders() {
+        header("X-Content-Type-Options: nosniff");
+        header("X-Frame-Options: SAMEORIGIN");
+        header("X-XSS-Protection: 1; mode=block");
+        header("Referrer-Policy: no-referrer-when-downgrade");
+
+        $csp = $this->cspPolicies[$this->options->cspLevel];
+        if ($csp !== "") {
+            header("Content-Security-Policy: " . $csp);
+        }
+    }
+
     // Main method for dispatching the incoming request to the correct route
-    public function Dispatch(string $method, string $uri)
-    {
+    public function Dispatch(string $method, string $uri) {
         @session_start();
 
-        // Convert to uppercase for comparison
+        if ($this->options->debugMode) {
+            $this->WriteRoutesToFile();
+        }
+
         $method = strtoupper($method);
-        if (!isset($this->routes[$method])) return 'Method not supported.';
+        if (!isset($this->routes[$method])) {
+            $this->RequireErrorPage('405'); // Method Not Allowed
+            return;
+        }
 
-        // Strip off the prefix if it exists
-        if ($this->urlPrefix != null) $uri = substr($uri, strlen($this->urlPrefix));
+        if ($this->options->urlPrefix !== null) {
+            $uri = substr($uri, strlen($this->options->urlPrefix));
+        }
+        if ($this->options->debugMode) {
+            $this->OutputError($method . ' ' . $uri);
+        }
 
-        if ($this->debugMode) $this->OutputError($method . ' ' . $uri);
-
-        // Iterate over routes
-        foreach ($this->routes[$method] as $route => $routeInfo)
-        {
-            // Build the route pattern
+        foreach ($this->routes[$method] as $route => $routeInfo) {
             $routePattern = '#^' . preg_replace('/\{([^}]+)\}/', '([^/]+)', $route) . '$#';
-            if (preg_match($routePattern, $uri, $matches))
-            {
-                // Remove the full match from the matches
+            if (preg_match($routePattern, $uri, $matches)) {
                 array_shift($matches);
 
-                // Check if user has required role
-                if ($routeInfo['role'] !== null && (!isset($_SESSION['role']) || $_SESSION['role'] !== $routeInfo['role'])) {
-                    $_GET['error_uri'] = $method . ' ' . $uri;
-                    require dirname(__FILE__) . '/errorPages/403.php';
+                if ($routeInfo['role'] !== null && (!isset($_SESSION['role']) || in_array($_SESSION['role'], $routeInfo['role']) === false)) {
+                    $this->RequireErrorPage('403'); // Forbidden
                     return;
                 }
 
-                // If the callback is callable, call it
-                if (is_callable($routeInfo['callback'])) return call_user_func_array($routeInfo['callback'], $matches);
+                $this->SetSecureHeaders(); // Set headers only when serving a successful response
 
-                // If the callback is a string, require the file
-                elseif (is_string($routeInfo['callback'])) {
+                if (is_callable($routeInfo['callback'])) {
+                    return call_user_func_array($routeInfo['callback'], $matches);
+                } elseif (is_string($routeInfo['callback'])) {
                     preg_match_all('/\{([^}]+)\}/', $route, $paramNames);
                     $paramNames = $paramNames[1];
                     $params = array_combine($paramNames, $matches);
@@ -102,7 +147,7 @@ class jRoute
         foreach ($this->dirMappings as $mapping) {
             if (strpos($uri, $mapping['webPath']) === 0) {
                 // Check if user has required role
-                if ($mapping['role'] !== null && (!isset($_SESSION['role']) || $_SESSION['role'] !== $mapping['role'])) {
+                if ($mapping['role'] !== null && (!isset($_SESSION['role']) || in_array($_SESSION['role'], $mapping['role']) === false)) {
                     $_GET['error_uri'] = $method . ' ' . $uri;
                     require dirname(__FILE__) . '/errorPages/403.php';
                     return;
@@ -115,7 +160,11 @@ class jRoute
         }
 
         // If route or file was not found, require 404 page
-        $_GET['error_uri'] = $method . ' ' . $uri;
-        require dirname(__FILE__) . '/errorPages/404.php';
+        $this->RequireErrorPage('404');
+    }
+
+    private function RequireErrorPage($errorCode) {
+        $_GET['error_uri'] = $_SERVER['REQUEST_METHOD'] . ' ' . $_SERVER['REQUEST_URI'];
+        require dirname(__FILE__) . "/errorPages/$errorCode.php";
     }
 }
