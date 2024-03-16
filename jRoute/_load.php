@@ -67,8 +67,7 @@ class jRoute {
             if (file_exists($file)) {
                 return readfile($file);
             } else {
-                $_GET['error_uri'] = 'GET ' . $baseUrl . $path;
-                require dirname(__FILE__) . '/errorPages/404.php';
+                $this->RequireErrorPage('404');
                 return;
             }
         }, $requiredRole);
@@ -92,9 +91,7 @@ class jRoute {
         header("Referrer-Policy: no-referrer-when-downgrade");
 
         $csp = $this->cspPolicies[$this->options->cspLevel];
-        if ($csp !== "") {
-            header("Content-Security-Policy: " . $csp);
-        }
+        if ($csp !== "") header("Content-Security-Policy: " . $csp);
     }
 
     // Main method for dispatching the incoming request to the correct route
@@ -128,7 +125,7 @@ class jRoute {
                     return;
                 }
 
-                $this->SetSecureHeaders(); // Set headers only when serving a successful response
+                $this->SetSecureHeaders();
 
                 if (is_callable($routeInfo['callback'])) {
                     return call_user_func_array($routeInfo['callback'], $matches);
@@ -148,8 +145,7 @@ class jRoute {
             if (strpos($uri, $mapping['webPath']) === 0) {
                 // Check if user has required role
                 if ($mapping['role'] !== null && (!isset($_SESSION['role']) || in_array($_SESSION['role'], $mapping['role']) === false)) {
-                    $_GET['error_uri'] = $method . ' ' . $uri;
-                    require dirname(__FILE__) . '/errorPages/403.php';
+                    $this->RequireErrorPage('403'); // Forbidden
                     return;
                 }
 
@@ -164,7 +160,11 @@ class jRoute {
     }
 
     private function RequireErrorPage($errorCode) {
-        $_GET['error_uri'] = $_SERVER['REQUEST_METHOD'] . ' ' . $_SERVER['REQUEST_URI'];
-        require dirname(__FILE__) . "/errorPages/$errorCode.php";
+        $reqUrl = $_SERVER['REQUEST_URI'];
+        if ($this->options->urlPrefix !== null) $reqUrl = substr($reqUrl, strlen($this->options->urlPrefix));
+        $reqUrl = $_SERVER['REQUEST_METHOD'] . ' ' . $reqUrl;
+
+        require dirname(__FILE__) . "/errorPage.php";
+        DisplayErrorPage($errorCode, $reqUrl);
     }
 }

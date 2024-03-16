@@ -1,10 +1,24 @@
-<?php http_response_code(403); ?>
+<?php
+
+function DisplayErrorPage($statusCode, $errorUri)
+{
+    $statusCodes = [
+        404 => ['Not Found', "The requested URL was not found on this server."],
+        405 => ['Method Not Allowed', "The method specified in the request is not allowed for the resource identified by the request URI."],
+        403 => ['Forbidden', "You don't have permission to access this resource."]
+    ];
+
+    http_response_code($statusCode);
+
+    $status = $statusCodes[$statusCode];
+
+?>
 
 <!DOCTYPE html>
 <html>
 
 <head>
-    <title>403 Forbidden</title>
+    <title><?= htmlspecialchars($statusCode) ?> <?= $status[0] ?></title>
     <style>
         body {
             background-color: #eeeeee;
@@ -50,10 +64,13 @@
 
 <body>
     <div class="error-box">
-        <h1>403 Forbidden</h1>
-        <p>You do not have permission to access this page.</p>
-        <code><?= htmlspecialchars($_GET['error_uri']) ?></code>
+        <h1><?= htmlspecialchars($statusCode) ?> <?= $status[0] ?></h1>
+        <p><?= $status[1] ?></p>
+        <code><?= htmlspecialchars($errorUri) ?></code>
     </div>
 </body>
 
 </html>
+
+<?php
+}
