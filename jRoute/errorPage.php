@@ -45,6 +45,14 @@ function DisplayErrorPage($statusCode, $errorUri)
             color: #b35a46;
         }
 
+        code {
+            display: block;
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #eeeeee;
+            border-radius: 5px;
+        }
+
         @media (prefers-color-scheme: dark) {
             body {
                 background-color: #222222;
@@ -57,6 +65,11 @@ function DisplayErrorPage($statusCode, $errorUri)
 
             h1 {
                 color: #ff8a80;
+            }
+
+            code {
+                background-color: #222222;
+                color: white;
             }
         }
     </style>
