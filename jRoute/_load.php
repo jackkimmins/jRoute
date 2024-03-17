@@ -98,22 +98,16 @@ class jRoute {
     public function Dispatch(string $method, string $uri) {
         @session_start();
 
-        if ($this->options->debugMode) {
-            $this->WriteRoutesToFile();
-        }
+        if ($this->options->debugMode) $this->WriteRoutesToFile();
 
         $method = strtoupper($method);
         if (!isset($this->routes[$method])) {
-            $this->RequireErrorPage('405'); // Method Not Allowed
+            $this->RequireErrorPage('405');
             return;
         }
 
-        if ($this->options->urlPrefix !== null) {
-            $uri = substr($uri, strlen($this->options->urlPrefix));
-        }
-        if ($this->options->debugMode) {
-            $this->OutputError($method . ' ' . $uri);
-        }
+        if ($this->options->urlPrefix !== null) $uri = substr($uri, strlen($this->options->urlPrefix));
+        if ($this->options->debugMode) $this->OutputError($method . ' ' . $uri);
 
         foreach ($this->routes[$method] as $route => $routeInfo) {
             $routePattern = '#^' . preg_replace('/\{([^}]+)\}/', '([^/]+)', $route) . '$#';
@@ -121,7 +115,7 @@ class jRoute {
                 array_shift($matches);
 
                 if ($routeInfo['role'] !== null && (!isset($_SESSION['role']) || in_array($_SESSION['role'], $routeInfo['role']) === false)) {
-                    $this->RequireErrorPage('403'); // Forbidden
+                    $this->RequireErrorPage('403');
                     return;
                 }
 
@@ -165,6 +159,6 @@ class jRoute {
         $reqUrl = $_SERVER['REQUEST_METHOD'] . ' ' . $reqUrl;
 
         require dirname(__FILE__) . "/errorPage.php";
-        DisplayErrorPage($errorCode, $reqUrl);
+        ErrorPage::Display($errorCode, $reqUrl);
     }
 }

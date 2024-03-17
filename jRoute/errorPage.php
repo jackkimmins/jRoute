@@ -1,24 +1,25 @@
 <?php
 
-function DisplayErrorPage($statusCode, $errorUri)
+class ErrorPage
 {
-    $statusCodes = [
+    private static $statusCodes = [
         404 => ['Not Found', "The requested URL was not found on this server."],
         405 => ['Method Not Allowed', "The method specified in the request is not allowed for the resource identified by the request URI."],
         403 => ['Forbidden', "You don't have permission to access this resource."]
     ];
 
-    http_response_code($statusCode);
+    public static function Display($statusCode, $errorUri)
+    {
+        http_response_code($statusCode);
 
-    $status = $statusCodes[$statusCode];
+        $status = self::$statusCodes[$statusCode];
 
-?>
-
+        echo <<<HTML
 <!DOCTYPE html>
 <html>
 
 <head>
-    <title><?= htmlspecialchars($statusCode) ?> <?= $status[0] ?></title>
+    <title>$statusCode: $status[0]</title>
     <style>
         body {
             background-color: #eeeeee;
@@ -77,13 +78,13 @@ function DisplayErrorPage($statusCode, $errorUri)
 
 <body>
     <div class="error-box">
-        <h1><?= htmlspecialchars($statusCode) ?> <?= $status[0] ?></h1>
-        <p><?= $status[1] ?></p>
-        <code><?= htmlspecialchars($errorUri) ?></code>
+        <h1>$statusCode: $status[0]</h1>
+        <p>$status[1]</p>
+        <code>$errorUri</code>
     </div>
 </body>
 
 </html>
-
-<?php
+HTML;
+    }
 }

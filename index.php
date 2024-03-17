@@ -30,7 +30,7 @@ $route->Route(['get'], '/user/{id}/{name}', function ($userId, $name) {
     return 'User with id: ' . $userId . ' and name: ' . $name;
 });
 
-$_SESSION['role'] = 'staff1';
+$_SESSION['role'] = 'admin';
 $route->AddDir('/public', './contents/public', ['admin', 'staff']);
 
 // Dispatch request
